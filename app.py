@@ -1,4 +1,5 @@
 import os
+import re
 import boto3
 import streamlit as st
 from botocore.exceptions import ClientError
@@ -68,8 +69,15 @@ REGLAS ESTRICTAS:
    y no lo inventes.
 5. Recuerda toda la conversación: si el usuario hace una repregunta o se refiere a algo
    anterior ("eso", "el segundo punto", "¿y con IGV?"), respóndela usando el historial.
+7. Formato: no uses encabezados con # (se ven demasiado grandes). Usa párrafos cortos,
+   **negritas** y listas. Sé claro y directo, sin repetir información.
 6. Los saludos o mensajes de cortesía (hola, gracias) puedes responderlos brevemente
    recordando que ayudas con temas contables."""
+
+def md(texto):
+    """Escapa el símbolo $ para que Streamlit no lo interprete como fórmula matemática."""
+    return re.sub(r"(?<!\\)\$", r"\\$", texto)
+
 
 tiene_logo = os.path.exists(LOGO)
 
@@ -158,7 +166,7 @@ for m in st.session_state.messages:
         if m.get("adjuntos"):
             mostrar_adjuntos(m["adjuntos"])
         if m["content"]:
-            st.markdown(m["content"])
+            st.markdown(md(m["content"]))
 
 
 def procesar_archivos(archivos):
@@ -304,13 +312,16 @@ def preguntar(pregunta, adjuntos):
         modelId=MODEL_ID,
         messages=historial,
         system=[{"text": SYSTEM_PROMPT}],
-        inferenceConfig={"maxTokens": 1500, "temperature": 0.2},
+        inferenceConfig={"maxTokens": 4000, "temperature": 0.2},
     )
     texto = resp["output"]["message"]["content"][0]["text"].strip()
+    cortada = resp.get("stopReason") == "max_tokens"
 
     # Si el modelo marcó la pregunta como fuera de tema, mostramos el mensaje fijo
     if MARCA_FUERA_DE_TEMA in texto:
         return MENSAJE_FUERA_DE_TEMA, []
+    if cortada:
+        texto += "\n\n_⚠️ La respuesta se cortó por su longitud. Escribe «continúa» para seguir._"
     return texto, fuentes
 
 
@@ -334,7 +345,7 @@ if entrada:
     if texto_usuario:
         with st.chat_message("user"):
             mostrar_adjuntos(adjuntos)
-            st.markdown(texto_usuario)
+            st.markdown(md(texto_usuario))
 
         with st.chat_message("assistant"):
             with st.spinner("Pensando..."):
@@ -343,7 +354,7 @@ if entrada:
                     respuesta, fuentes = preguntar(texto_usuario, adjuntos)
                 except ClientError as e:
                     respuesta = f"Error: {e.response['Error']['Message']}"
-            st.markdown(respuesta)
+            st.markdown(md(respuesta))
 
         st.session_state.messages.append(
             {"role": "user", "content": texto_usuario, "adjuntos": adjuntos}
