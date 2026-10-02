@@ -66,6 +66,20 @@ tiene_logo = os.path.exists(LOGO)
 
 st.set_page_config(page_title=NOMBRE, page_icon="🤖")
 
+# Oculta la barra superior (Share, menú ⋮, etc.) y el pie de página
+st.markdown(
+    """
+    <style>
+    [data-testid="stToolbar"], [data-testid="stHeader"],
+    [data-testid="stDecoration"], #MainMenu, footer {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Logo centrado en lugar del título
 if tiene_logo:
     _, centro, _ = st.columns([1, 2, 1])
