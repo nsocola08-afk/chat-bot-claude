@@ -24,8 +24,10 @@ SALUDO = (
     "- 📒 Contabilidad\n"
     "- 💰 Finanzas\n"
     "- 🧮 Costos\n"
-    "- 📑 Normas contables (NIIF/NIC)\n"
-    "- 🏛️ Normativa tributaria\n\n"
+    "- 🔍 Auditoría\n"
+    "- 📑 Normas contables (NIIF, NIC, NIAs, NICSP, etc.)\n"
+    "- 🇺🇸 US GAAP\n"
+    "- 🏛️ Normativa tributaria (de cada país)\n\n"
     "También puedes **adjuntar PDFs o fotos** (facturas, balances, recibos, etc.) "
     "y te ayudo a analizarlos.\n\n"
     "Por favor, limita tus preguntas a estos temas. ¿En qué puedo ayudarte hoy?"
@@ -33,14 +35,16 @@ SALUDO = (
 
 MENSAJE_FUERA_DE_TEMA = (
     "Lo siento, solo puedo ayudarte con temas de **contabilidad, finanzas, costos, "
-    "normas contables y normativa tributaria**. 📊\n\n"
+    "auditoría, normas contables (NIIF, NIC, NIAs, NICSP, US GAAP) y normativa "
+    "tributaria**. 📊\n\n"
     "¿Tienes alguna consulta sobre alguno de estos temas? Con gusto te ayudo."
 )
 
 MARCA_FUERA_DE_TEMA = "FUERA_DE_TEMA"
 
 SYSTEM_PROMPT = f"""Eres un asistente de IA especializado EXCLUSIVAMENTE en estos temas:
-contabilidad, finanzas, costos, normas contables (NIIF, NIC, PCGA) y normativa tributaria.
+contabilidad, finanzas, costos, auditoría, normas contables (NIIF, NIC, NIAs, NICSP, US GAAP,
+PCGA locales) y normativa tributaria de cualquier país.
 
 REGLAS ESTRICTAS:
 1. Si la pregunta del usuario NO está relacionada con los temas anteriores (por ejemplo
@@ -56,7 +60,7 @@ REGLAS ESTRICTAS:
    y profesional. Usa en primer lugar la información del contexto de la base de
    conocimiento y/o de los archivos adjuntos por el usuario.
 4. Si la respuesta NO está en el contexto ni en los archivos, responde con tu conocimiento
-   general sobre contabilidad, finanzas, costos, normas contables y tributación, de forma
+   general sobre contabilidad, finanzas, costos, auditoría, normas contables y tributación, de forma
    natural, SIN mencionar que la información no está en la base de conocimiento ni
    explicar de dónde sale tu respuesta. En temas tributarios recomienda brevemente
    verificar la norma vigente, ya que las normas y tasas cambian. Si no estás seguro de
@@ -311,7 +315,7 @@ def preguntar(pregunta, adjuntos):
 
 
 entrada = st.chat_input(
-    "Escribe tu pregunta sobre contabilidad, finanzas, costos o tributación...",
+    "Escribe tu pregunta sobre contabilidad, auditoría, finanzas, costos o tributación...",
     accept_file="multiple",
     file_type=["pdf", "png", "jpg", "jpeg"],
 )
