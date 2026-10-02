@@ -80,6 +80,17 @@ st.markdown(
         display: none !important;
         visibility: hidden !important;
     }
+
+    /* Sube la barra de escribir (cambia 3rem para subirla más o menos) */
+    [data-testid="stBottom"] > div {
+        padding-bottom: 3rem !important;
+    }
+
+    /* Menos espacio arriba, ya que la barra superior está oculta */
+    .stMainBlockContainer, [data-testid="stMainBlockContainer"] {
+        padding-top: 1rem !important;
+        padding-bottom: 6rem !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
