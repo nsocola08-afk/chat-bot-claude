@@ -110,17 +110,6 @@ if "messages" not in st.session_state:
 if "contador_archivos" not in st.session_state:
     st.session_state.contador_archivos = 0
 
-with st.sidebar:
-    if st.button("🗑️ Nueva conversación"):
-        st.session_state.messages = conversacion_inicial()
-        st.session_state.contador_archivos = 0
-        st.rerun()
-    st.caption(
-        "📎 Puedes adjuntar PDF, PNG o JPG con el clip del cuadro de chat. "
-        f"Máx. {MAX_PDF_MB} MB por PDF y {MAX_IMG_MB} MB por imagen."
-    )
-
-
 def mostrar_adjuntos(adjuntos):
     for a in adjuntos:
         if a["tipo"] == "imagen":
