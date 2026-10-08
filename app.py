@@ -133,7 +133,7 @@ st.markdown(
         z-index: 1000;
         width: fit-content !important;
     }
-    /* Botón cuadrado: ícono arriba y texto abajo
+    /* Botón cuadrado: ícono arriba y texto abajo, ambos centrados
        (cambia 5.6rem para hacerlo más grande o más pequeño) */
     .st-key-tareas_btn button {
         width: 5.6rem !important;
@@ -146,24 +146,43 @@ st.markdown(
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
-        gap: 0.25rem !important;
+        width: 100% !important;
         height: 100% !important;
+        margin: 0 !important;                /* Streamlit le pone un margen negativo que descentra el contenido */
+        gap: 0 !important;
     }
     .st-key-tareas_btn button [data-has-shortcut] {
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
-        gap: 0.3rem !important;
+        justify-content: center !important;
+        gap: 0.65rem !important;             /* espacio entre el ícono y el texto */
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    /* Caja del ícono: alta y centrada, para que no se monte sobre el texto */
+    .st-key-tareas_btn button [data-has-shortcut] > span:first-child {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        height: 1.8rem !important;
+        margin: 0 !important;
     }
     .st-key-tareas_btn button [data-testid="stIconEmoji"] {
         font-size: 1.7rem !important;
         line-height: 1 !important;
+        margin: 0 !important;
     }
     /* Oculta la flechita del botón */
     .st-key-tareas_btn button > div > div[aria-hidden="true"] {
         display: none !important;
     }
+    .st-key-tareas_btn button [data-testid="stMarkdownContainer"],
     .st-key-tareas_btn button p {
+        width: 100% !important;
+        margin: 0 !important;
         font-size: 0.65rem !important;
         line-height: 1.15 !important;
         text-align: center !important;
