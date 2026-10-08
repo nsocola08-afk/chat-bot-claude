@@ -133,15 +133,41 @@ st.markdown(
         z-index: 1000;
         width: fit-content !important;
     }
-    /* Tamaño del botón (cambia 0.8rem para hacerlo más grande o más pequeño) */
+    /* Botón cuadrado: ícono arriba y texto abajo
+       (cambia 5.6rem para hacerlo más grande o más pequeño) */
     .st-key-tareas_btn button {
-        min-height: 2rem !important;
-        padding: 0.1rem 0.7rem !important;
+        width: 5.6rem !important;
+        height: 5.6rem !important;
+        min-height: 5.6rem !important;
+        padding: 0.4rem !important;
         border-radius: 0.25rem !important;   /* esquinas casi cuadradas (0 = totalmente cuadrado) */
     }
+    .st-key-tareas_btn button > div {
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 0.25rem !important;
+        height: 100% !important;
+    }
+    .st-key-tareas_btn button [data-has-shortcut] {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 0.3rem !important;
+    }
+    .st-key-tareas_btn button [data-testid="stIconEmoji"] {
+        font-size: 1.7rem !important;
+        line-height: 1 !important;
+    }
+    /* Oculta la flechita del botón */
+    .st-key-tareas_btn button > div > div[aria-hidden="true"] {
+        display: none !important;
+    }
     .st-key-tareas_btn button p {
-        font-size: 0.8rem !important;
-        line-height: 1.2 !important;
+        font-size: 0.65rem !important;
+        line-height: 1.15 !important;
+        text-align: center !important;
+        white-space: normal !important;
     }
     /* En pantallas pequeñas vuelve a su lugar normal para no tapar el logo */
     @media (max-width: 700px) {
@@ -150,7 +176,7 @@ st.markdown(
 
     /* Oculta el texto "Limit 200MB per file" del cuadro de subida (el límite real
        se indica en el mensaje del cuadro y lo valida el código) */
-    [data-testid="stFileUploaderDropzoneInstructions"] small {
+    [data-testid="stFileUploaderDropzoneInstructions"] {
         display: none !important;
     }
 
@@ -357,7 +383,11 @@ def vista_previa(archivos):
 
 # Botón "ESPACIO DE TRABAJO": cuadro flotante que permanece cerrado hasta hacer clic
 with st.container(key="tareas_btn"):
-    with st.popover("📁 ESPACIO DE TRABAJO"):
+    try:
+        _panel = st.popover("ESPACIO DE TRABAJO", icon="📁")
+    except TypeError:  # versiones antiguas de Streamlit sin el parámetro icon
+        _panel = st.popover("📁 ESPACIO DE TRABAJO")
+    with _panel:
         st.caption(
             "Usa este espacio para añadir información (documentos, balances, facturas "
             "o imágenes) que IA Pacioli puede leer para ayudarte a responder. "
