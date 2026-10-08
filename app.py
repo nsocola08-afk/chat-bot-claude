@@ -1,3 +1,4 @@
+import io
 import os
 import re
 import boto3
@@ -7,6 +8,16 @@ try:
     import pymupdf  # PyMuPDF: vista previa de PDFs (opcional)
 except Exception:
     pymupdf = None
+
+try:
+    import openpyxl  # leer archivos Excel (.xlsx)
+except Exception:
+    openpyxl = None
+
+try:
+    import docx  # leer archivos Word (.docx)
+except Exception:
+    docx = None
 from botocore.exceptions import ClientError
 
 # ---------------- CONFIGURACIÓN ----------------
@@ -23,6 +34,7 @@ MAX_IMG_MB = 3.75
 MAX_DOCS_TOTAL = 5            # máximo de documentos por consulta (espacio de trabajo + chat)
 MAX_IMGS_TOTAL = 20           # máximo de imágenes por consulta (espacio de trabajo + chat)
 MAX_ESPACIO = 4               # máximo de archivos en el Espacio de trabajo
+MAX_CHARS_ARCHIVO = 50000     # máximo de caracteres de texto que se leen por archivo (Excel, Word, TXT, CSV)
 TIPOS_ESPACIO = ["pdf", "png", "jpg", "jpeg", "txt", "csv", "docx", "xlsx"]
 MAX_IMGS_EN_CONTEXTO = 10     # máximo de imágenes enviadas al modelo por consulta
 # -----------------------------------------------
@@ -202,6 +214,56 @@ if "contador_archivos" not in st.session_state:
 
 
 # ---------------- ESPACIO DE TRABAJO ----------------
+def extraer_texto_archivo(datos, ext):
+    """Convierte TXT, CSV, DOCX o XLSX en texto plano para enviarlo al modelo."""
+    if ext in ("txt", "csv"):
+        for codificacion in ("utf-8-sig", "latin-1"):
+            try:
+                return datos.decode(codificacion)
+            except UnicodeDecodeError:
+                continue
+        return ""
+    if ext == "xlsx":
+        if openpyxl is None:
+            raise RuntimeError("falta instalar openpyxl")
+        # Primero con los valores calculados; si no hay datos, con las fórmulas
+        for solo_valores in (True, False):
+            wb = openpyxl.load_workbook(io.BytesIO(datos), data_only=solo_valores, read_only=True)
+            partes, total, hay_datos = [], 0, False
+            for hoja in wb.worksheets:
+                partes.append(f"## Hoja: {hoja.title}")
+                vacias = 0
+                for fila in hoja.iter_rows(values_only=True):
+                    celdas = ["" if v is None else str(v) for v in fila]
+                    if any(c.strip() for c in celdas):
+                        vacias, hay_datos = 0, True
+                        linea = " | ".join(celdas).rstrip(" |")
+                        partes.append(linea)
+                        total += len(linea)
+                    else:
+                        vacias += 1
+                        if vacias > 500:      # evita recorrer miles de filas vacías
+                            break
+                    if total > MAX_CHARS_ARCHIVO:
+                        break
+                if total > MAX_CHARS_ARCHIVO:
+                    break
+            wb.close()
+            if hay_datos:
+                break
+        return "\n".join(partes)
+    if ext == "docx":
+        if docx is None:
+            raise RuntimeError("falta instalar python-docx")
+        documento = docx.Document(io.BytesIO(datos))
+        partes = [p.text for p in documento.paragraphs if p.text.strip()]
+        for tabla in documento.tables:
+            for fila in tabla.rows:
+                partes.append(" | ".join(c.text.strip() for c in fila.cells))
+        return "\n".join(partes)
+    return ""
+
+
 def procesar_espacio(archivos):
     """Convierte los archivos del Espacio de trabajo en adjuntos válidos para Bedrock."""
     adjuntos, avisos = [], []
@@ -216,26 +278,41 @@ def procesar_espacio(archivos):
         ext = f.name.rsplit(".", 1)[-1].lower() if "." in f.name else ""
         datos = f.getvalue()
         mb = len(datos) / (1024 * 1024)
+        item = {"nombre": f.name, "bytes": datos, "texto": ""}
         if ext in ("png", "jpg", "jpeg"):
             if mb > MAX_IMG_MB:
                 avisos.append(f"'{f.name}' pesa {mb:.1f} MB (máx. {MAX_IMG_MB} MB) y no se usará.")
                 continue
-            tipo, formato = "imagen", ("png" if ext == "png" else "jpeg")
-        elif ext in ("pdf", "txt", "csv", "docx", "xlsx"):
+            item.update(tipo="imagen", formato=("png" if ext == "png" else "jpeg"))
+        elif ext == "pdf":
             if mb > MAX_PDF_MB:
                 avisos.append(f"'{f.name}' pesa {mb:.1f} MB (máx. {MAX_PDF_MB} MB) y no se usará.")
                 continue
-            tipo, formato = ("pdf" if ext == "pdf" else "doc"), ext
+            item.update(tipo="pdf", formato="pdf")
+        elif ext in ("txt", "csv", "docx", "xlsx"):
+            if mb > MAX_PDF_MB:
+                avisos.append(f"'{f.name}' pesa {mb:.1f} MB (máx. {MAX_PDF_MB} MB) y no se usará.")
+                continue
+            # Se convierte a texto: así el modelo siempre recibe el contenido real
+            try:
+                texto = extraer_texto_archivo(datos, ext).strip()
+            except Exception as e:
+                avisos.append(f"No pude leer '{f.name}' ({e}).")
+                continue
+            if not texto:
+                avisos.append(f"'{f.name}' no tiene texto legible y no se usará.")
+                continue
+            if len(texto) > MAX_CHARS_ARCHIVO:
+                texto = texto[:MAX_CHARS_ARCHIVO] + "\n[... contenido recortado por su longitud ...]"
+                avisos.append(
+                    f"'{f.name}' es muy largo: se usan solo los primeros {MAX_CHARS_ARCHIVO:,} caracteres."
+                )
+            item.update(tipo="texto", formato=ext, texto=texto)
         else:
             avisos.append(f"'{f.name}' no es un formato admitido.")
             continue
-        adjuntos.append({
-            "nombre": f.name,
-            "tipo": tipo,
-            "formato": formato,
-            "bytes": datos,
-            "id": len(adjuntos) + 1,
-        })
+        item["id"] = len(adjuntos) + 1
+        adjuntos.append(item)
     return adjuntos, avisos
 
 
@@ -269,11 +346,8 @@ def vista_previa(archivos):
                         extra = f" · {paginas} pág."
                     else:
                         st.markdown("📄")
-                elif a["formato"] in ("txt", "csv"):
-                    texto = a["bytes"][:300].decode("utf-8", errors="ignore")
-                    st.code(texto, language=None)
-                else:
-                    st.markdown("📄" if a["formato"] == "docx" else "📊")
+                elif a["tipo"] == "texto":
+                    st.code(a["texto"][:250], language=None)
                 nombre = a["nombre"]
                 if len(nombre) > 24:
                     nombre = nombre[:21] + "…"
@@ -306,7 +380,7 @@ with st.container(key="tareas_btn"):
 def exceso_de_limites(adjuntos):
     """Revisa que espacio de trabajo + adjuntos del chat no superen los límites de Bedrock."""
     todos = espacio + adjuntos
-    docs = sum(1 for a in todos if a["tipo"] != "imagen")
+    docs = sum(1 for a in todos if a["tipo"] == "pdf")
     imgs = sum(1 for a in todos if a["tipo"] == "imagen")
     if docs > MAX_DOCS_TOTAL:
         return (f"Puedes usar como máximo {MAX_DOCS_TOTAL} documentos por mensaje "
@@ -370,7 +444,9 @@ def bloques_de_adjuntos(adjuntos, prefijo="documento"):
     """Convierte adjuntos en bloques de contenido para la API Converse."""
     bloques = []
     for a in adjuntos:
-        if a["tipo"] == "imagen":
+        if a["tipo"] == "texto":
+            bloques.append({"text": f"[Contenido del archivo «{a['nombre']}»]\n{a['texto']}"})
+        elif a["tipo"] == "imagen":
             bloques.append({"image": {
                 "format": a["formato"],
                 "source": {"bytes": a["bytes"]},
@@ -467,7 +543,7 @@ def preguntar(pregunta, adjuntos):
     contexto = "\n\n---\n\n".join(fragmentos) if fragmentos else "(sin resultados)"
 
     usados = espacio + adjuntos
-    docs_usados = sum(1 for a in usados if a["tipo"] != "imagen")
+    docs_usados = sum(1 for a in usados if a["tipo"] == "pdf")
     imgs_usadas = sum(1 for a in usados if a["tipo"] == "imagen")
     historial = construir_historial(
         max(0, MAX_DOCS_TOTAL - docs_usados),

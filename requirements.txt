@@ -1,3 +1,5 @@
 streamlit>=1.43
 boto3
 pymupdf
+openpyxl
+python-docx
