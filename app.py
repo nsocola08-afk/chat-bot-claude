@@ -135,6 +135,12 @@ st.markdown(
         .st-key-tareas_btn { position: static; }
     }
 
+    /* Oculta el texto "Limit 200MB per file" del cuadro de subida (el límite real
+       se indica en el mensaje del cuadro y lo valida el código) */
+    [data-testid="stFileUploaderDropzoneInstructions"] small {
+        display: none !important;
+    }
+
     /* Sube la barra de escribir (cambia 3rem para subirla más o menos) */
     [data-testid="stBottom"] > div {
         padding-bottom: 3rem !important;
@@ -280,7 +286,8 @@ with st.container(key="tareas_btn"):
         st.caption(
             "Usa este espacio para añadir información (documentos, balances, facturas "
             "o imágenes) que IA Pacioli puede leer para ayudarte a responder. "
-            f"Máximo {MAX_ESPACIO} archivos."
+            f"Máximo {MAX_ESPACIO} archivos, de hasta {MAX_PDF_MB} MB cada uno "
+        f"({MAX_IMG_MB} MB las imágenes). Formatos: PDF, imágenes, TXT, CSV, Word y Excel."
         )
         subidos = st.file_uploader(
             "➕ Añadir repositorio",
