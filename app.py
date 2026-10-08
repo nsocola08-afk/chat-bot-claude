@@ -490,7 +490,7 @@ def procesar_archivos(archivos):
     return adjuntos, avisos
 
 
-def bloques_de_adjuntos(adjuntos, prefijo="documento"):
+def bloques_de_adjuntos(adjuntos, prefijo="Documento"):
     """Convierte adjuntos en bloques de contenido para la API Converse."""
     bloques = []
     for a in adjuntos:
@@ -601,7 +601,7 @@ def preguntar(pregunta, adjuntos):
     )
 
     # Archivos del Espacio de trabajo + archivos adjuntos en este mensaje
-    bloques = bloques_de_adjuntos(espacio, "espacio") + bloques_de_adjuntos(adjuntos)
+    bloques = bloques_de_adjuntos(espacio, "Espacio") + bloques_de_adjuntos(adjuntos)
     nota_espacio = ""
     if espacio:
         nombres = ", ".join(a["nombre"] for a in espacio)
