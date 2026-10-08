@@ -112,6 +112,20 @@ st.markdown(
         visibility: hidden !important;
     }
 
+    /* Botón TAREAS Y REPOSITORIO: fijo en la esquina superior izquierda
+       (cambia top y left para moverlo) */
+    .st-key-tareas_btn {
+        position: fixed;
+        top: 0.8rem;
+        left: 1.2rem;
+        z-index: 1000;
+        width: fit-content !important;
+    }
+    /* En pantallas pequeñas vuelve a su lugar normal para no tapar el logo */
+    @media (max-width: 700px) {
+        .st-key-tareas_btn { position: static; }
+    }
+
     /* Sube la barra de escribir (cambia 3rem para subirla más o menos) */
     [data-testid="stBottom"] > div {
         padding-bottom: 3rem !important;
@@ -252,24 +266,25 @@ def vista_previa(archivos):
 
 
 # Botón "TAREAS Y REPOSITORIO": cuadro flotante que permanece cerrado hasta hacer clic
-with st.popover("📁 TAREAS Y REPOSITORIO"):
-    st.caption(
-        "Usa este espacio para añadir información (documentos, balances, facturas "
-        "o imágenes) que IA Pacioli puede leer para ayudarte a responder. "
-        f"Máximo {MAX_ESPACIO} archivos."
-    )
-    subidos = st.file_uploader(
-        "➕ Añadir repositorio",
-        type=TIPOS_ESPACIO,
-        accept_multiple_files=True,
-        key="espacio_uploader",
-    )
-    espacio, avisos_espacio = procesar_espacio(subidos)
-    for aviso in avisos_espacio:
-        st.warning(aviso)
-    if espacio:
-        st.caption(f"✅ {len(espacio)}/{MAX_ESPACIO} archivos activos: el bot los usa al responder.")
-        vista_previa(espacio)
+with st.container(key="tareas_btn"):
+    with st.popover("📁 TAREAS Y REPOSITORIO"):
+        st.caption(
+            "Usa este espacio para añadir información (documentos, balances, facturas "
+            "o imágenes) que IA Pacioli puede leer para ayudarte a responder. "
+            f"Máximo {MAX_ESPACIO} archivos."
+        )
+        subidos = st.file_uploader(
+            "➕ Añadir repositorio",
+            type=TIPOS_ESPACIO,
+            accept_multiple_files=True,
+            key="espacio_uploader",
+        )
+        espacio, avisos_espacio = procesar_espacio(subidos)
+        for aviso in avisos_espacio:
+            st.warning(aviso)
+        if espacio:
+            st.caption(f"✅ {len(espacio)}/{MAX_ESPACIO} archivos activos: el bot los usa al responder.")
+            vista_previa(espacio)
 
 
 def exceso_de_limites(adjuntos):
