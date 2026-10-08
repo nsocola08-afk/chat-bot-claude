@@ -100,22 +100,16 @@ def md(texto):
 
 tiene_logo = os.path.exists(LOGO)
 
-st.set_page_config(page_title=NOMBRE, page_icon="🤖", initial_sidebar_state="expanded")
+st.set_page_config(page_title=NOMBRE, page_icon="🤖")
 
 # Oculta la barra superior (Share, menú ⋮, etc.) y el pie de página
 st.markdown(
     """
     <style>
-    [data-testid="stToolbar"],
+    [data-testid="stToolbar"], [data-testid="stHeader"],
     [data-testid="stDecoration"], #MainMenu, footer {
         display: none !important;
         visibility: hidden !important;
-    }
-
-    /* Cabecera vacía y transparente: así sigue visible el botón que abre el panel
-       lateral (Espacio de trabajo) en pantallas pequeñas */
-    [data-testid="stHeader"] {
-        background: transparent !important;
     }
 
     /* Sube la barra de escribir (cambia 3rem para subirla más o menos) */
@@ -257,25 +251,25 @@ def vista_previa(archivos):
                 st.caption(nombre + extra)
 
 
-with st.sidebar:
-    with st.expander("📁 Espacio de trabajo", expanded=False):
-        st.caption(
-            "Usa este espacio para añadir información (documentos, balances, facturas "
-            "o imágenes) que IA Pacioli puede leer para ayudarte a responder. "
-            f"Máximo {MAX_ESPACIO} archivos."
-        )
-        subidos = st.file_uploader(
-            "➕ Añadir repositorio",
-            type=TIPOS_ESPACIO,
-            accept_multiple_files=True,
-            key="espacio_uploader",
-        )
-        espacio, avisos_espacio = procesar_espacio(subidos)
-        for aviso in avisos_espacio:
-            st.warning(aviso)
-        if espacio:
-            st.caption(f"✅ {len(espacio)}/{MAX_ESPACIO} archivos activos: el bot los usa al responder.")
-            vista_previa(espacio)
+# Botón "TAREAS Y REPOSITORIO": cuadro flotante que permanece cerrado hasta hacer clic
+with st.popover("📁 TAREAS Y REPOSITORIO"):
+    st.caption(
+        "Usa este espacio para añadir información (documentos, balances, facturas "
+        "o imágenes) que IA Pacioli puede leer para ayudarte a responder. "
+        f"Máximo {MAX_ESPACIO} archivos."
+    )
+    subidos = st.file_uploader(
+        "➕ Añadir repositorio",
+        type=TIPOS_ESPACIO,
+        accept_multiple_files=True,
+        key="espacio_uploader",
+    )
+    espacio, avisos_espacio = procesar_espacio(subidos)
+    for aviso in avisos_espacio:
+        st.warning(aviso)
+    if espacio:
+        st.caption(f"✅ {len(espacio)}/{MAX_ESPACIO} archivos activos: el bot los usa al responder.")
+        vista_previa(espacio)
 
 
 def exceso_de_limites(adjuntos):
