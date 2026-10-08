@@ -7,7 +7,7 @@ from botocore.exceptions import ClientError
 # ---------------- CONFIGURACIÓN ----------------
 REGION = "us-east-1"          # misma región de tu Knowledge Base
 KB_ID = "G4AMYKZWEU"          # ID de tu Knowledge Base
-MODEL_ID = "us.anthropic.claude-haiku-5-5"  # Claude Haiku 5.5 (perfil US). Alternativa: "global.anthropic.claude-haiku-5-5"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"  # Claude Haiku 5.5 (perfil global). Alternativa: "us.anthropic.claude-haiku-5-5"
 NUM_RESULTADOS = 5            # fragmentos que se traen de la KB por pregunta
 LOGO = "logo.png"             # cambia la extensión si es .jpg, .jpeg, etc.
 NOMBRE = "Mi Chatbot"         # texto de la pestaña del navegador
@@ -275,7 +275,7 @@ def reformular(pregunta):
             messages=[{"role": "user", "content": [{"text": (
                 f"Historial:\n{resumen}\n\nÚltima pregunta: {pregunta}"
             )}]}],
-            inferenceConfig={"maxTokens": 500, "temperature": 0},
+            inferenceConfig={"maxTokens": 500},
         )
         return extraer_texto(resp) or pregunta
     except Exception:
@@ -318,7 +318,7 @@ def preguntar(pregunta, adjuntos):
         modelId=MODEL_ID,
         messages=historial,
         system=[{"text": SYSTEM_PROMPT}],
-        inferenceConfig={"maxTokens": 6000, "temperature": 0.2},
+        inferenceConfig={"maxTokens": 6000},
     )
     texto = extraer_texto(resp)
     cortada = resp.get("stopReason") == "max_tokens"
