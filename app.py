@@ -124,7 +124,7 @@ st.markdown(
         visibility: hidden !important;
     }
 
-    /* Botón TAREAS Y REPOSITORIO: fijo en la esquina superior izquierda
+    /* Botón ESPACIO DE TRABAJO: fijo en la esquina superior izquierda
        (cambia top y left para moverlo) */
     .st-key-tareas_btn {
         position: fixed;
@@ -137,6 +137,7 @@ st.markdown(
     .st-key-tareas_btn button {
         min-height: 2rem !important;
         padding: 0.1rem 0.7rem !important;
+        border-radius: 0.25rem !important;   /* esquinas casi cuadradas (0 = totalmente cuadrado) */
     }
     .st-key-tareas_btn button p {
         font-size: 0.8rem !important;
@@ -354,9 +355,9 @@ def vista_previa(archivos):
                 st.caption(nombre + extra)
 
 
-# Botón "TAREAS Y REPOSITORIO": cuadro flotante que permanece cerrado hasta hacer clic
+# Botón "ESPACIO DE TRABAJO": cuadro flotante que permanece cerrado hasta hacer clic
 with st.container(key="tareas_btn"):
-    with st.popover("📁 TAREAS Y REPOSITORIO"):
+    with st.popover("📁 ESPACIO DE TRABAJO"):
         st.caption(
             "Usa este espacio para añadir información (documentos, balances, facturas "
             "o imágenes) que IA Pacioli puede leer para ayudarte a responder. "
