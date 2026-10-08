@@ -121,6 +121,15 @@ st.markdown(
         z-index: 1000;
         width: fit-content !important;
     }
+    /* Tamaño del botón (cambia 0.8rem para hacerlo más grande o más pequeño) */
+    .st-key-tareas_btn button {
+        min-height: 2rem !important;
+        padding: 0.1rem 0.7rem !important;
+    }
+    .st-key-tareas_btn button p {
+        font-size: 0.8rem !important;
+        line-height: 1.2 !important;
+    }
     /* En pantallas pequeñas vuelve a su lugar normal para no tapar el logo */
     @media (max-width: 700px) {
         .st-key-tareas_btn { position: static; }
