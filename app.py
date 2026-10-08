@@ -116,8 +116,8 @@ st.markdown(
        (cambia top y left para moverlo) */
     .st-key-tareas_btn {
         position: fixed;
-        top: 0.8rem;
-        left: 1.2rem;
+        top: 2.5rem;
+        left: 3rem;
         z-index: 1000;
         width: fit-content !important;
     }
