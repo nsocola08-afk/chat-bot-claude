@@ -2,6 +2,11 @@ import os
 import re
 import boto3
 import streamlit as st
+
+try:
+    import pymupdf  # PyMuPDF: vista previa de PDFs (opcional)
+except Exception:
+    pymupdf = None
 from botocore.exceptions import ClientError
 
 # ---------------- CONFIGURACIÓN ----------------
@@ -15,7 +20,10 @@ NOMBRE = "Mi Chatbot"         # texto de la pestaña del navegador
 # Límites de Bedrock para archivos adjuntos
 MAX_PDF_MB = 4.5
 MAX_IMG_MB = 3.75
-MAX_PDFS_EN_CONTEXTO = 5      # máximo de PDFs enviados al modelo por consulta
+MAX_DOCS_TOTAL = 5            # máximo de documentos por consulta (espacio de trabajo + chat)
+MAX_IMGS_TOTAL = 20           # máximo de imágenes por consulta (espacio de trabajo + chat)
+MAX_ESPACIO = 4               # máximo de archivos en el Espacio de trabajo
+TIPOS_ESPACIO = ["pdf", "png", "jpg", "jpeg", "txt", "csv", "docx", "xlsx"]
 MAX_IMGS_EN_CONTEXTO = 10     # máximo de imágenes enviadas al modelo por consulta
 # -----------------------------------------------
 
@@ -69,10 +77,15 @@ REGLAS ESTRICTAS:
    y no lo inventes.
 5. Recuerda toda la conversación: si el usuario hace una repregunta o se refiere a algo
    anterior ("eso", "el segundo punto", "¿y con IGV?"), respóndela usando el historial.
+6. Los saludos o mensajes de cortesía (hola, gracias) puedes responderlos brevemente
+   recordando que ayudas con temas contables.
 7. Formato: no uses encabezados con # (se ven demasiado grandes). Usa párrafos cortos,
    **negritas** y listas. Sé claro y directo, sin repetir información.
-6. Los saludos o mensajes de cortesía (hola, gracias) puedes responderlos brevemente
-   recordando que ayudas con temas contables."""
+8. Espacio de trabajo: el usuario puede tener archivos en su "espacio de trabajo". Llegan
+   adjuntos en cada mensaje y se indican como [Archivos del espacio de trabajo: ...].
+   Úsalos, junto con la base de conocimiento, como fuente de información, y menciona el
+   nombre del archivo cuando ayude a la respuesta. Si el usuario habla de "mis archivos",
+   "el documento" o "el repositorio", basa tu respuesta en ellos."""
 
 def extraer_texto(resp):
     """Une los bloques de texto de la respuesta e ignora los bloques de razonamiento."""
@@ -87,16 +100,22 @@ def md(texto):
 
 tiene_logo = os.path.exists(LOGO)
 
-st.set_page_config(page_title=NOMBRE, page_icon="🤖")
+st.set_page_config(page_title=NOMBRE, page_icon="🤖", initial_sidebar_state="expanded")
 
 # Oculta la barra superior (Share, menú ⋮, etc.) y el pie de página
 st.markdown(
     """
     <style>
-    [data-testid="stToolbar"], [data-testid="stHeader"],
+    [data-testid="stToolbar"],
     [data-testid="stDecoration"], #MainMenu, footer {
         display: none !important;
         visibility: hidden !important;
+    }
+
+    /* Cabecera vacía y transparente: así sigue visible el botón que abre el panel
+       lateral (Espacio de trabajo) en pantallas pequeñas */
+    [data-testid="stHeader"] {
+        background: transparent !important;
     }
 
     /* Sube la barra de escribir (cambia 3rem para subirla más o menos) */
@@ -158,6 +177,122 @@ if "messages" not in st.session_state:
 if "contador_archivos" not in st.session_state:
     st.session_state.contador_archivos = 0
 
+
+# ---------------- ESPACIO DE TRABAJO ----------------
+def procesar_espacio(archivos):
+    """Convierte los archivos del Espacio de trabajo en adjuntos válidos para Bedrock."""
+    adjuntos, avisos = [], []
+    archivos = list(archivos or [])
+    if len(archivos) > MAX_ESPACIO:
+        avisos.append(
+            f"Máximo {MAX_ESPACIO} archivos: solo se usan los primeros {MAX_ESPACIO}. "
+            "Quita los demás con la ✕."
+        )
+        archivos = archivos[:MAX_ESPACIO]
+    for f in archivos:
+        ext = f.name.rsplit(".", 1)[-1].lower() if "." in f.name else ""
+        datos = f.getvalue()
+        mb = len(datos) / (1024 * 1024)
+        if ext in ("png", "jpg", "jpeg"):
+            if mb > MAX_IMG_MB:
+                avisos.append(f"'{f.name}' pesa {mb:.1f} MB (máx. {MAX_IMG_MB} MB) y no se usará.")
+                continue
+            tipo, formato = "imagen", ("png" if ext == "png" else "jpeg")
+        elif ext in ("pdf", "txt", "csv", "docx", "xlsx"):
+            if mb > MAX_PDF_MB:
+                avisos.append(f"'{f.name}' pesa {mb:.1f} MB (máx. {MAX_PDF_MB} MB) y no se usará.")
+                continue
+            tipo, formato = ("pdf" if ext == "pdf" else "doc"), ext
+        else:
+            avisos.append(f"'{f.name}' no es un formato admitido.")
+            continue
+        adjuntos.append({
+            "nombre": f.name,
+            "tipo": tipo,
+            "formato": formato,
+            "bytes": datos,
+            "id": len(adjuntos) + 1,
+        })
+    return adjuntos, avisos
+
+
+@st.cache_data(show_spinner=False)
+def miniatura_pdf(datos):
+    """Primera página del PDF como imagen PNG pequeña, y número de páginas."""
+    if pymupdf is None:
+        return None, 0
+    try:
+        doc = pymupdf.open(stream=datos, filetype="pdf")
+        paginas = doc.page_count
+        pix = doc[0].get_pixmap(matrix=pymupdf.Matrix(0.7, 0.7))
+        return pix.tobytes("png"), paginas
+    except Exception:
+        return None, 0
+
+
+def vista_previa(archivos):
+    """Muestra una vista previa de cada archivo del Espacio de trabajo (2 por fila)."""
+    for inicio in range(0, len(archivos), 2):
+        cols = st.columns(2)
+        for col, a in zip(cols, archivos[inicio:inicio + 2]):
+            with col:
+                extra = ""
+                if a["tipo"] == "imagen":
+                    st.image(a["bytes"])
+                elif a["tipo"] == "pdf":
+                    img, paginas = miniatura_pdf(a["bytes"])
+                    if img:
+                        st.image(img)
+                        extra = f" · {paginas} pág."
+                    else:
+                        st.markdown("📄")
+                elif a["formato"] in ("txt", "csv"):
+                    texto = a["bytes"][:300].decode("utf-8", errors="ignore")
+                    st.code(texto, language=None)
+                else:
+                    st.markdown("📄" if a["formato"] == "docx" else "📊")
+                nombre = a["nombre"]
+                if len(nombre) > 24:
+                    nombre = nombre[:21] + "…"
+                st.caption(nombre + extra)
+
+
+with st.sidebar:
+    with st.expander("📁 Espacio de trabajo", expanded=False):
+        st.caption(
+            "Usa este espacio para añadir información (documentos, balances, facturas "
+            "o imágenes) que IA Pacioli puede leer para ayudarte a responder. "
+            f"Máximo {MAX_ESPACIO} archivos."
+        )
+        subidos = st.file_uploader(
+            "➕ Añadir repositorio",
+            type=TIPOS_ESPACIO,
+            accept_multiple_files=True,
+            key="espacio_uploader",
+        )
+        espacio, avisos_espacio = procesar_espacio(subidos)
+        for aviso in avisos_espacio:
+            st.warning(aviso)
+        if espacio:
+            st.caption(f"✅ {len(espacio)}/{MAX_ESPACIO} archivos activos: el bot los usa al responder.")
+            vista_previa(espacio)
+
+
+def exceso_de_limites(adjuntos):
+    """Revisa que espacio de trabajo + adjuntos del chat no superen los límites de Bedrock."""
+    todos = espacio + adjuntos
+    docs = sum(1 for a in todos if a["tipo"] != "imagen")
+    imgs = sum(1 for a in todos if a["tipo"] == "imagen")
+    if docs > MAX_DOCS_TOTAL:
+        return (f"Puedes usar como máximo {MAX_DOCS_TOTAL} documentos por mensaje "
+                "(contando los del Espacio de trabajo). Quita alguno e inténtalo de nuevo.")
+    if imgs > MAX_IMGS_TOTAL:
+        return (f"Puedes usar como máximo {MAX_IMGS_TOTAL} imágenes por mensaje "
+                "(contando las del Espacio de trabajo). Quita alguna e inténtalo de nuevo.")
+    return None
+# -----------------------------------------------------
+
+
 def mostrar_adjuntos(adjuntos):
     for a in adjuntos:
         if a["tipo"] == "imagen":
@@ -206,19 +341,19 @@ def procesar_archivos(archivos):
     return adjuntos, avisos
 
 
-def bloques_de_adjuntos(adjuntos):
+def bloques_de_adjuntos(adjuntos, prefijo="documento"):
     """Convierte adjuntos en bloques de contenido para la API Converse."""
     bloques = []
     for a in adjuntos:
-        if a["tipo"] == "pdf":
-            bloques.append({"document": {
-                "format": "pdf",
-                "name": f"documento {a['id']}",   # solo letras, números y espacios
+        if a["tipo"] == "imagen":
+            bloques.append({"image": {
+                "format": a["formato"],
                 "source": {"bytes": a["bytes"]},
             }})
         else:
-            bloques.append({"image": {
+            bloques.append({"document": {
                 "format": a["formato"],
+                "name": f"{prefijo} {a['id']}",   # solo letras, números y espacios
                 "source": {"bytes": a["bytes"]},
             }})
     return bloques
@@ -231,7 +366,7 @@ def texto_con_nombres(texto, adjuntos):
     return f"[Archivos adjuntos: {nombres}]\n{texto}"
 
 
-def construir_historial():
+def construir_historial(max_pdfs, max_imgs):
     """Historial completo (con archivos), limitando PDFs/imágenes a los más recientes."""
     msgs = [m for m in st.session_state.messages if not m.get("saludo")]
     # Decidir qué adjuntos conservar (los más recientes)
@@ -239,10 +374,10 @@ def construir_historial():
     conservar = set()
     for m in reversed(msgs):
         for a in reversed(m.get("adjuntos", [])):
-            if a["tipo"] == "pdf" and pdfs < MAX_PDFS_EN_CONTEXTO:
+            if a["tipo"] == "pdf" and pdfs < max_pdfs:
                 pdfs += 1
                 conservar.add(a["id"])
-            elif a["tipo"] == "imagen" and imgs < MAX_IMGS_EN_CONTEXTO:
+            elif a["tipo"] == "imagen" and imgs < max_imgs:
                 imgs += 1
                 conservar.add(a["id"])
     historial = []
@@ -306,11 +441,23 @@ def preguntar(pregunta, adjuntos):
     fragmentos, fuentes = buscar_en_kb(consulta)
     contexto = "\n\n---\n\n".join(fragmentos) if fragmentos else "(sin resultados)"
 
-    historial = construir_historial()
-    bloques = bloques_de_adjuntos(adjuntos)
+    usados = espacio + adjuntos
+    docs_usados = sum(1 for a in usados if a["tipo"] != "imagen")
+    imgs_usadas = sum(1 for a in usados if a["tipo"] == "imagen")
+    historial = construir_historial(
+        max(0, MAX_DOCS_TOTAL - docs_usados),
+        max(0, min(MAX_IMGS_EN_CONTEXTO, MAX_IMGS_TOTAL - imgs_usadas)),
+    )
+
+    # Archivos del Espacio de trabajo + archivos adjuntos en este mensaje
+    bloques = bloques_de_adjuntos(espacio, "espacio") + bloques_de_adjuntos(adjuntos)
+    nota_espacio = ""
+    if espacio:
+        nombres = ", ".join(a["nombre"] for a in espacio)
+        nota_espacio = f"[Archivos del espacio de trabajo: {nombres}]\n"
     bloques.append({"text": (
         f"Contexto de la base de conocimiento:\n{contexto}\n\n"
-        f"{texto_con_nombres(pregunta, adjuntos)}"
+        f"{nota_espacio}{texto_con_nombres(pregunta, adjuntos)}"
     )})
     historial.append({"role": "user", "content": bloques})
 
@@ -348,7 +495,10 @@ if entrada:
         for a in avisos:
             st.warning(a)
 
-    if texto_usuario:
+    exceso = exceso_de_limites(adjuntos) if texto_usuario else None
+    if exceso:
+        st.warning(exceso)
+    elif texto_usuario:
         with st.chat_message("user"):
             mostrar_adjuntos(adjuntos)
             st.markdown(md(texto_usuario))
